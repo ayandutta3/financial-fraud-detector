@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Financial Fraud Detector — Python Dependencies
+# Target: AMD GPU + ROCm 6.x
+#
+# IMPORTANT: PyTorch must be installed FIRST using the ROCm wheel index.
+# See README.md for the correct installation order.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core ML Framework (AMD ROCm) ─────────────────────────────────────────────
+# Do NOT install torch from PyPI — it will pull the CUDA build.
+# Run this separately BEFORE `pip install -r requirements.txt`:
+#
+#   pip install torch torchvision torchaudio \
+#       --index-url https://download.pytorch.org/whl/rocm6.2
+#
+# Pinned to ROCm 6.2 wheels. Change to rocm6.1 if your driver is older.
+
+# ── HuggingFace Ecosystem ────────────────────────────────────────────────────
+transformers>=4.45.0
+tokenizers>=0.20.0
+accelerate>=0.34.0
+datasets>=2.21.0
+huggingface-hub>=0.25.0
+safetensors>=0.4.5
+
+# ── PEFT / LoRA ──────────────────────────────────────────────────────────────
+peft>=0.13.0
+
+# ── TRL (SFTTrainer) ─────────────────────────────────────────────────────────
+trl>=0.11.0
+
+# ── 4-bit Quantisation (optional — only needed with --use_4bit flag) ─────────
+# bitsandbytes ROCm support requires a ROCm-compatible build.
+# Install the ROCm variant: pip install bitsandbytes --prefer-binary
+bitsandbytes>=0.43.0
+
+# ── Data Processing ───────────────────────────────────────────────────────────
+pandas>=2.2.0
+numpy>=1.26.0
+pyarrow>=17.0.0          # required by HuggingFace datasets Arrow backend
+
+# ── Utilities ────────────────────────────────────────────────────────────────
+tqdm>=4.66.0
+packaging>=24.0
+psutil>=6.0.0            # memory monitoring during training

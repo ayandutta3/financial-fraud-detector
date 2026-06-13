@@ -1,0 +1,27 @@
+Fraud Detection Dataset — Phase Split Summary
+==================================================
+Requested ratios : 0.4 / 0.3 / 0.3
+
+[phase-1]
+  Total rows : 1,192
+  CLEAN      : 596
+  card_testing                  : 320
+  geo_anomaly                   : 160
+  account_takeover              : 84
+  money_laundering_ring         : 32
+
+[phase-2]
+  Total rows : 894
+  CLEAN      : 447
+  card_testing                  : 240
+  geo_anomaly                   : 120
+  account_takeover              : 63
+  money_laundering_ring         : 24
+
+[phase-3]
+  Total rows : 894
+  CLEAN      : 447
+  card_testing                  : 240
+  geo_anomaly                   : 120
+  account_takeover              : 63
+  money_laundering_ring         : 24
