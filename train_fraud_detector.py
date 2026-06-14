@@ -51,6 +51,7 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     BitsAndBytesConfig,
+    TrainingArguments,
 )
 from peft import (
     LoraConfig,
@@ -58,7 +59,7 @@ from peft import (
     get_peft_model,
     prepare_model_for_kbit_training,
 )
-from trl import SFTTrainer, SFTConfig
+from trl import SFTTrainer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -229,7 +230,7 @@ def train(
     else:
         log.info("Starting training from scratch.")
 
-    sft_config = SFTConfig(
+    training_args = TrainingArguments(
         output_dir=checkpoint_dir,
 
         # ── Epochs & steps ────────────────────────────────────────────────
@@ -254,11 +255,6 @@ def train(
         bf16=True,                          # bfloat16 — highly stable on AMD
         fp16=False,
 
-        # ── Sequence length ───────────────────────────────────────────────
-        max_seq_length=max_seq_len,
-        dataset_text_field="text",          # column produced by preprocess_data.py
-        packing=False,                      # keep one example per sample
-
         # ── Logging & checkpointing ───────────────────────────────────────
         logging_steps=10,
         save_strategy="steps",              # save on both step intervals and epoch end
@@ -278,9 +274,12 @@ def train(
 
     trainer = SFTTrainer(
         model=model,
-        args=sft_config,
+        args=training_args,
         train_dataset=dataset,
         tokenizer=tokenizer,
+        max_seq_length=max_seq_len,
+        dataset_text_field="text",
+        packing=False,
     )
 
     log.info("Starting supervised fine-tuning …")
