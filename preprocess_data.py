@@ -11,7 +11,7 @@ re-reading or re-formatting the CSV every time.
 Usage:
     python preprocess_data.py \\
         --csv_path      sample-dataset/fraud-detection-dataset-1.csv \\
-        --base_model    meta-llama/Llama-3.2-1B \\
+        --base_model    Qwen/Qwen2.5-3B-Instruct \\
         --output_dir    ./processed-data \\
         --max_seq_len   512
 """
@@ -207,7 +207,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--base_model",
         type=str,
-        default="meta-llama/Llama-3.2-1B",
+        default="Qwen/Qwen2.5-3B-Instruct",
         help="HuggingFace model ID (used only to load the tokenizer for chat templating).",
     )
     parser.add_argument(

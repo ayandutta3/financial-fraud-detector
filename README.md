@@ -16,11 +16,12 @@ The output is a fully merged, standalone model that can be served immediately wi
 6. [Step 1 — Preprocess Data](#step-1--preprocess-data)
 7. [Step 2 — Train the Model](#step-2--train-the-model)
 8. [Resuming an Interrupted Training Run](#resuming-an-interrupted-training-run)
-9. [Persistent Volume Layout (VM Deployments)](#persistent-volume-layout-vm-deployments)
-10. [Serving the Model with vLLM](#serving-the-model-with-vllm)
-11. [Script Architecture](#script-architecture)
-12. [Fraud Label Reference](#fraud-label-reference)
-13. [Troubleshooting AMD ROCm Issues](#troubleshooting-amd-rocm-issues)
+9. [Phased Fine-Tuning (Phase-1 & Phase-2)](#phased-fine-tuning-phase-1--phase-2)
+10. [Persistent Volume Layout (VM Deployments)](#persistent-volume-layout-vm-deployments)
+11. [Serving the Model with vLLM](#serving-the-model-with-vllm)
+12. [Script Architecture](#script-architecture)
+13. [Fraud Label Reference](#fraud-label-reference)
+14. [Troubleshooting AMD ROCm Issues](#troubleshooting-amd-rocm-issues)
 
 ---
 
@@ -120,9 +121,9 @@ pip install -r requirements.txt
 pip install bitsandbytes --prefer-binary
 ```
 
-### Step 6 — Authenticate with HuggingFace Hub
+### Step 6 — Authenticate with HuggingFace Hub (Optional)
 
-Some base models (e.g. Llama-3.2-1B) require accepting a licence on the HuggingFace website and authenticating locally:
+Gated models (e.g., Llama-3 series) require accepting a license on the Hugging Face website and authenticating locally. If you are using the default model `Qwen/Qwen2.5-3B-Instruct`, **this step is not required** and can be skipped entirely. If you choose to use a gated model later:
 
 ```bash
 pip install huggingface_hub
@@ -198,7 +199,7 @@ Run `preprocess_data.py` **once** before any training. It reads the raw CSV, app
 ```bash
 python preprocess_data.py \
     --csv_path      sample-dataset/fraud-detection-dataset-1.csv \
-    --base_model    meta-llama/Llama-3.2-1B \
+    --base_model    Qwen/Qwen2.5-3B-Instruct \
     --output_dir    /mnt/data/processed-data
 ```
 
@@ -207,7 +208,7 @@ python preprocess_data.py \
 | Argument        | Default                                         | Description                                                          |
 |-----------------|-------------------------------------------------|----------------------------------------------------------------------|
 | `--csv_path`    | `sample-dataset/fraud-detection-dataset-1.csv` | Path to the balanced CSV dataset                                     |
-| `--base_model`  | `meta-llama/Llama-3.2-1B`                      | HuggingFace model ID — used only to load the tokenizer for templating |
+| `--base_model`  | `Qwen/Qwen2.5-3B-Instruct`                      | HuggingFace model ID — used only to load the tokenizer for templating |
 | `--output_dir`  | `./processed-data`                              | Directory where the HuggingFace Dataset will be saved (`save_to_disk`) |
 | `--max_seq_len` | `512`                                           | Maximum token sequence length (informational, stored as metadata)    |
 
@@ -225,7 +226,7 @@ Once preprocessing is complete, run `train_fraud_detector.py`. This script:
 
 ```bash
 python train_fraud_detector.py \
-    --base_model         meta-llama/Llama-3.2-1B \
+    --base_model         Qwen/Qwen2.5-3B-Instruct \
     --processed_data_dir /mnt/data/processed-data \
     --checkpoint_dir     /mnt/data/checkpoints \
     --model_output_dir   /mnt/data/fraud-detector-merged \
@@ -250,7 +251,7 @@ python train_fraud_detector.py \
 
 ```bash
 python train_fraud_detector.py \
-    --base_model         meta-llama/Llama-3.2-1B \
+    --base_model         Qwen/Qwen2.5-3B-Instruct \
     --processed_data_dir /mnt/data/processed-data \
     --checkpoint_dir     /mnt/data/checkpoints \
     --model_output_dir   /mnt/data/fraud-detector-merged \
@@ -263,7 +264,7 @@ python train_fraud_detector.py \
 
 | Argument                    | Default                   | Description                                                                 |
 |-----------------------------|---------------------------|-----------------------------------------------------------------------------|
-| `--base_model`              | `meta-llama/Llama-3.2-1B` | HuggingFace model ID or local path of the base model                       |
+| `--base_model`              | `Qwen/Qwen2.5-3B-Instruct` | HuggingFace model ID or local path of the base model                       |
 | `--processed_data_dir`      | `./processed-data`        | Directory with the HuggingFace Dataset produced by `preprocess_data.py`    |
 | `--checkpoint_dir`          | `./checkpoints`           | Directory where training checkpoints are saved                              |
 | `--model_output_dir`        | `./fraud-detector-merged` | Directory where the final merged, vLLM-ready model is saved                |
@@ -285,7 +286,7 @@ Checkpoints are saved automatically every `--save_steps` steps (default: every 5
 
 ```bash
 python train_fraud_detector.py \
-    --base_model         meta-llama/Llama-3.2-1B \
+    --base_model         Qwen/Qwen2.5-3B-Instruct \
     --processed_data_dir /mnt/data/processed-data \
     --checkpoint_dir     /mnt/data/checkpoints \
     --model_output_dir   /mnt/data/fraud-detector-merged \
@@ -299,7 +300,7 @@ Pass `auto` to automatically detect and resume from the most recent checkpoint i
 
 ```bash
 python train_fraud_detector.py \
-    --base_model         meta-llama/Llama-3.2-1B \
+    --base_model         Qwen/Qwen2.5-3B-Instruct \
     --processed_data_dir /mnt/data/processed-data \
     --checkpoint_dir     /mnt/data/checkpoints \
     --model_output_dir   /mnt/data/fraud-detector-merged \
@@ -308,6 +309,68 @@ python train_fraud_detector.py \
 ```
 
 > **Tip:** Use `auto` in job scheduler scripts (cron, systemd, etc.) so the run safely restarts after any VM preemption or reboot without manual intervention.
+
+---
+
+## Phased Fine-Tuning (Phase-1 & Phase-2)
+
+Phased training allows you to incrementally train your model on sequential batches of data. In this project, the data is pre-split into sequential subsets inside the [sample-dataset/phases/](file:///d:/Workspace/GitHubCopilot/financial-fraud-detector/sample-dataset/phases/) directory:
+- **Phase 1 (`phase-1.csv`):** 1,192 rows (40% split)
+- **Phase 2 (`phase-2.csv`):** 894 rows (30% split)
+
+To fine-tune `Qwen/Qwen2.5-3B-Instruct` sequentially through Phase 1 and Phase 2, run the following steps in order:
+
+### Step 1: Preprocess and Train on Phase 1
+
+1. **Preprocess Phase 1 Data:**
+   Format the phase-1 CSV transactions into a chat-structured HuggingFace dataset using the Qwen model's tokenizer:
+   ```bash
+   python preprocess_data.py \
+       --csv_path      sample-dataset/phases/phase-1.csv \
+       --base_model    Qwen/Qwen2.5-3B-Instruct \
+       --output_dir    ./processed-phase-1
+   ```
+
+2. **Train on Phase 1:**
+   Train the model using the preprocessed phase-1 dataset. The merged model will be saved to `./models/qwen-phase-1`:
+   ```bash
+   python train_fraud_detector.py \
+       --base_model         Qwen/Qwen2.5-3B-Instruct \
+       --processed_data_dir ./processed-phase-1 \
+       --checkpoint_dir     ./checkpoints-phase-1 \
+       --model_output_dir   ./models/qwen-phase-1 \
+       --epochs             3 \
+       --batch_size         4 \
+       --lr                 2e-4
+   ```
+
+### Step 2: Preprocess and Train on Phase 2
+
+To continue learning from the Phase 2 dataset, we use the merged output of Phase 1 (`./models/qwen-phase-1`) as the base model for Phase 2.
+
+1. **Preprocess Phase 2 Data:**
+   Use the Phase 1 output as the base model so tokenizer templates and configurations carry forward:
+   ```bash
+   python preprocess_data.py \
+       --csv_path      sample-dataset/phases/phase-2.csv \
+       --base_model    ./models/qwen-phase-1 \
+       --output_dir    ./processed-phase-2
+   ```
+
+2. **Train on Phase 2:**
+   Fine-tune using the Phase 1 model as the starting point. We lower the learning rate (`2e-4` -> `1e-4`) to refine the weights gently and prevent forgetting Phase 1 knowledge:
+   ```bash
+   python train_fraud_detector.py \
+       --base_model         ./models/qwen-phase-1 \
+       --processed_data_dir ./processed-phase-2 \
+       --checkpoint_dir     ./checkpoints-phase-2 \
+       --model_output_dir   ./models/qwen-phase-2 \
+       --epochs             2 \
+       --batch_size         4 \
+       --lr                 1e-4
+   ```
+
+Once completed, the model in `./models/qwen-phase-2` has successfully completed training on both Phase 1 and Phase 2 data and is ready for serving!
 
 ---
 
@@ -351,12 +414,12 @@ cp sample-dataset/phases/phase-3.csv /mnt/data/phases/
 # Preprocess phase-1 data (run once per phase)
 python preprocess_data.py \
     --csv_path      /mnt/data/phases/phase-1.csv \
-    --base_model    meta-llama/Llama-3.2-1B \
+    --base_model    Qwen/Qwen2.5-3B-Instruct \
     --output_dir    /mnt/data/processed-phase-1
 
 # Train on phase-1
 python train_fraud_detector.py \
-    --base_model         meta-llama/Llama-3.2-1B \
+    --base_model         Qwen/Qwen2.5-3B-Instruct \
     --processed_data_dir /mnt/data/processed-phase-1 \
     --checkpoint_dir     /mnt/data/checkpoints-phase-1 \
     --model_output_dir   /mnt/data/model-phase-1 \
@@ -390,7 +453,7 @@ python train_fraud_detector.py \
 
 # ── Resume any phase if the VM was rebooted mid-training ─────────────────
 python train_fraud_detector.py \
-    --base_model         meta-llama/Llama-3.2-1B \
+    --base_model         Qwen/Qwen2.5-3B-Instruct \
     --processed_data_dir /mnt/data/processed-phase-1 \
     --checkpoint_dir     /mnt/data/checkpoints-phase-1 \
     --model_output_dir   /mnt/data/model-phase-1 \
@@ -581,4 +644,4 @@ sudo mount /dev/sdb1 /mnt/data
 
 ## License
 
-This project is for research and educational purposes. Ensure compliance with the licence terms of the chosen base model (Llama-3 Community Licence / Microsoft Phi-3 MIT Licence) before any commercial deployment.
+This project is for research and educational purposes. Ensure compliance with the licence terms of the chosen base model (Qwen License Agreement / Llama-3 Community Licence / Microsoft Phi-3 MIT Licence) before any commercial deployment.

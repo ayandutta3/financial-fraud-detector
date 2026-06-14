@@ -2,7 +2,7 @@
 Financial Fraud Detection - Model Training Script
 ==================================================
 Target Hardware : AMD GPU (ROCm / HIP)
-Base Model      : meta-llama/Llama-3.2-1B  (or microsoft/Phi-3.5-mini-instruct)
+Base Model      : Qwen/Qwen2.5-3B-Instruct
 Task            : Multi-class fraud classification via supervised fine-tuning
 Output          : Merged, standalone model weights ready for `vllm serve`
 
@@ -11,12 +11,12 @@ Prerequisites:
 
         python preprocess_data.py \\
             --csv_path     sample-dataset/fraud-detection-dataset-1.csv \\
-            --base_model   meta-llama/Llama-3.2-1B \\
+            --base_model   Qwen/Qwen2.5-3B-Instruct \\
             --output_dir   ./processed-data
 
 Usage (fresh training run):
     python train_fraud_detector.py \\
-        --base_model         meta-llama/Llama-3.2-1B \\
+        --base_model         Qwen/Qwen2.5-3B-Instruct \\
         --processed_data_dir ./processed-data \\
         --checkpoint_dir     ./checkpoints \\
         --model_output_dir   ./fraud-detector-merged \\
@@ -26,7 +26,7 @@ Usage (fresh training run):
 
 Usage (resume from a saved checkpoint):
     python train_fraud_detector.py \\
-        --base_model         meta-llama/Llama-3.2-1B \\
+        --base_model         Qwen/Qwen2.5-3B-Instruct \\
         --processed_data_dir ./processed-data \\
         --checkpoint_dir     ./checkpoints \\
         --model_output_dir   ./fraud-detector-merged \\
@@ -345,7 +345,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--base_model",
         type=str,
-        default="meta-llama/Llama-3.2-1B",
+        default="Qwen/Qwen2.5-3B-Instruct",
         help="HuggingFace model ID or local path of the base model.",
     )
     parser.add_argument(
