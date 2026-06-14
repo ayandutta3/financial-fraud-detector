@@ -229,57 +229,80 @@ def train(
     else:
         log.info("Starting training from scratch.")
 
-    sft_config = SFTConfig(
-        output_dir=checkpoint_dir,
+    import inspect
+
+    # 1. Build SFTConfig arguments dynamically
+    config_kwargs = {
+        "output_dir": checkpoint_dir,
 
         # ── Epochs & steps ────────────────────────────────────────────────
-        num_train_epochs=epochs,
-        max_steps=-1,                       # driven by epochs
+        "num_train_epochs": epochs,
+        "max_steps": -1,
 
         # ── Batch / gradient accumulation ────────────────────────────────
-        per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=4,      # effective batch = batch_size * 4
-        gradient_checkpointing=True,        # enforced here as well as model-level
+        "per_device_train_batch_size": batch_size,
+        "gradient_accumulation_steps": 4,
+        "gradient_checkpointing": True,
 
         # ── Optimiser ─────────────────────────────────────────────────────
-        optim="adamw_torch_fused",          # fused AdamW — efficient on both
-                                            # NVIDIA and ROCm (PyTorch >= 2.1)
-        learning_rate=lr,
-        lr_scheduler_type="cosine",
-        warmup_ratio=warmup_ratio,
-        weight_decay=weight_decay,
-        max_grad_norm=1.0,
+        "optim": "adamw_torch_fused",
+        "learning_rate": lr,
+        "lr_scheduler_type": "cosine",
+        "warmup_ratio": warmup_ratio,
+        "weight_decay": weight_decay,
+        "max_grad_norm": 1.0,
 
         # ── Precision ─────────────────────────────────────────────────────
-        bf16=True,                          # bfloat16 — highly stable on AMD
-        fp16=False,
+        "bf16": True,
+        "fp16": False,
 
         # ── Logging & checkpointing ───────────────────────────────────────
-        logging_steps=10,
-        save_strategy="steps",              # save on both step intervals and epoch end
-        save_steps=save_steps,              # checkpoint every N optimizer steps
-        save_total_limit=5,                 # keep the 5 most recent checkpoints
-        report_to="none",                   # set to "wandb" or "tensorboard" as needed
+        "logging_steps": 10,
+        "save_strategy": "steps",
+        "save_steps": save_steps,
+        "save_total_limit": 5,
+        "report_to": "none",
 
         # ── Data loading ──────────────────────────────────────────────────
-        dataloader_num_workers=2,
-        dataloader_pin_memory=False,        # ROCm unified memory — pin can cause issues
+        "dataloader_num_workers": 2,
+        "dataloader_pin_memory": False,
 
         # ── Misc ──────────────────────────────────────────────────────────
-        seed=42,
-        data_seed=42,
-        remove_unused_columns=True,
-    )
+        "seed": 42,
+        "data_seed": 42,
+        "remove_unused_columns": True,
+    }
 
-    trainer = SFTTrainer(
-        model=model,
-        args=sft_config,
-        train_dataset=dataset,
-        tokenizer=tokenizer,
-        max_seq_length=max_seq_len,
-        dataset_text_field="text",
-        packing=False,
-    )
+    config_sig = inspect.signature(SFTConfig.__init__)
+    sft_in_config = "max_seq_length" in config_sig.parameters
+
+    if sft_in_config:
+        config_kwargs["max_seq_length"] = max_seq_len
+        config_kwargs["dataset_text_field"] = "text"
+        config_kwargs["packing"] = False
+
+    sft_config = SFTConfig(**config_kwargs)
+
+    # 2. Build SFTTrainer arguments dynamically
+    trainer_sig = inspect.signature(SFTTrainer.__init__)
+    trainer_kwargs = {
+        "model": model,
+        "args": sft_config,
+        "train_dataset": dataset,
+    }
+
+    if not sft_in_config:
+        trainer_kwargs["max_seq_length"] = max_seq_len
+        trainer_kwargs["dataset_text_field"] = "text"
+        trainer_kwargs["packing"] = False
+
+    # Check for processing_class vs tokenizer in Trainer signature
+    if "processing_class" in trainer_sig.parameters:
+        trainer_kwargs["processing_class"] = tokenizer
+    else:
+        trainer_kwargs["tokenizer"] = tokenizer
+
+    trainer = SFTTrainer(**trainer_kwargs)
 
     log.info("Starting supervised fine-tuning …")
     trainer.train(resume_from_checkpoint=resume_target)
