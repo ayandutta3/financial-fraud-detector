@@ -273,8 +273,7 @@ def train(
         "remove_unused_columns": True,
     }
 
-    config_sig = inspect.signature(SFTConfig.__init__)
-    sft_in_config = "max_seq_length" in config_sig.parameters
+    sft_in_config = hasattr(SFTConfig, "max_seq_length")
 
     if sft_in_config:
         config_kwargs["max_seq_length"] = max_seq_len
