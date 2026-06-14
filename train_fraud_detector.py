@@ -51,7 +51,6 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     BitsAndBytesConfig,
-    TrainingArguments,
 )
 from peft import (
     LoraConfig,
@@ -59,7 +58,7 @@ from peft import (
     get_peft_model,
     prepare_model_for_kbit_training,
 )
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 
 logging.basicConfig(
     level=logging.INFO,
@@ -230,7 +229,7 @@ def train(
     else:
         log.info("Starting training from scratch.")
 
-    training_args = TrainingArguments(
+    sft_config = SFTConfig(
         output_dir=checkpoint_dir,
 
         # ── Epochs & steps ────────────────────────────────────────────────
@@ -274,7 +273,7 @@ def train(
 
     trainer = SFTTrainer(
         model=model,
-        args=training_args,
+        args=sft_config,
         train_dataset=dataset,
         tokenizer=tokenizer,
         max_seq_length=max_seq_len,
